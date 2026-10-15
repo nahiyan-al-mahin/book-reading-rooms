@@ -6,7 +6,8 @@ Read PDFs together with friends. Create a room, share the invite link, upload an
 
 - **Rooms with invite links**: each room gets a short code and a link like `http://localhost:3000/room/ab12cd`. Rooms can have an optional password.
 - **Upload any PDF**: anyone in the room can upload; it opens for everyone at once.
-- **Real book effect**: two-page spreads with a hard cover, drag a page corner or click to turn, plus a soft page-turn sound. On phones it shows one page at a time.
+- **Real book effect**: two-page spreads with a hard cover, drag a page corner or click to turn, plus a soft page-turn sound. On phones and narrow windows it switches to one big page at a time.
+- **Wizarding theme** with a dark mode (night sky and floating candles) and a light mode (parchment). The **Lumos / Nox** button switches between them and remembers your choice.
 - **Read together**: page turns are synced live. Untick **Read together** to browse on your own, tick it again to jump back to where the room is.
 - **People list and chat** in the side panel.
 - Arrow keys turn pages.

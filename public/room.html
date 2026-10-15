@@ -5,20 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reading room · Book Rooms</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cinzel+Decorative:wght@700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/theme.js"></script>
 </head>
 <body class="room">
+  <div class="sky" aria-hidden="true"></div>
+  <div class="candles" aria-hidden="true">
+    <span class="candle"></span><span class="candle"></span><span class="candle"></span>
+    <span class="candle"></span><span class="candle"></span><span class="candle"></span>
+  </div>
   <header class="topbar">
-    <a href="/" class="brand">📖 Book Rooms</a>
+    <a href="/" class="brand"><span aria-hidden="true">⚡</span> Book Rooms</a>
     <div class="room-title">
       <strong id="roomName">Loading…</strong>
       <span class="code">Code: <b id="roomCode"></b></span>
     </div>
     <div class="actions">
-      <button id="inviteBtn" class="btn small">🔗 Copy invite link</button>
+      <button class="btn small theme-toggle" data-theme-toggle type="button"></button>
+      <button id="inviteBtn" class="btn small">🦉 Send invite</button>
       <label class="btn small primary upload-btn">
-        ⬆ Upload PDF
+        📜 Upload PDF
         <input id="pdfInput" type="file" accept="application/pdf,.pdf" hidden>
       </label>
       <button id="sidebarToggle" class="btn small sidebar-toggle" aria-label="Show people and chat">💬</button>
@@ -29,8 +36,8 @@
     <main class="stage">
       <div id="empty" class="empty">
         <div class="empty-book">📚</div>
-        <h2>No book on the table yet</h2>
-        <p>Upload a PDF and everyone in the room will see it as a book.</p>
+        <h2>The table is empty</h2>
+        <p>Upload a PDF and it will appear as a book for everyone in the room.</p>
       </div>
 
       <div id="loading" class="loading" hidden>
@@ -54,14 +61,14 @@
 
     <aside id="sidebar" class="sidebar">
       <section>
-        <h3>In this room <span id="memberCount" class="count"></span></h3>
+        <h3>In the common room <span id="memberCount" class="count"></span></h3>
         <ul id="members" class="members"></ul>
       </section>
       <section class="chat">
-        <h3>Chat</h3>
+        <h3>Whispers</h3>
         <ul id="messages" class="messages"></ul>
         <form id="chatForm" class="chat-form">
-          <input id="chatInput" maxlength="500" placeholder="Say something…" autocomplete="off">
+          <input id="chatInput" maxlength="500" placeholder="Whisper something…" autocomplete="off">
           <button class="btn small primary">Send</button>
         </form>
       </section>

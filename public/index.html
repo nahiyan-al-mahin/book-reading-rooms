@@ -5,41 +5,49 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Book Rooms</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cinzel+Decorative:wght@700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/theme.js"></script>
 </head>
 <body class="home">
+  <div class="sky" aria-hidden="true"></div>
+  <div class="candles" aria-hidden="true">
+    <span class="candle"></span><span class="candle"></span><span class="candle"></span>
+    <span class="candle"></span><span class="candle"></span><span class="candle"></span>
+  </div>
   <main class="home-card">
-    <h1>📖 Book Rooms</h1>
-    <p class="tagline">Open a room, invite your friends and read any PDF together like a real book.</p>
+    <button class="btn small theme-toggle" data-theme-toggle type="button"></button>
+    <div class="crest" aria-hidden="true">⚡</div>
+    <h1>Book Rooms</h1>
+    <p class="tagline">Open a common room, send an owl to your friends, and turn the pages of any PDF together, as if by magic.</p>
 
     <label class="field">
       <span>Your name</span>
-      <input id="displayName" maxlength="30" placeholder="e.g. Mahin" autocomplete="nickname">
+      <input id="displayName" maxlength="30" placeholder="e.g. Hermione" autocomplete="nickname">
     </label>
 
     <section class="panel">
-      <h2>Create a room</h2>
+      <h2>Open a common room</h2>
       <label class="field">
         <span>Room name</span>
-        <input id="roomName" maxlength="60" placeholder="Friday book club">
+        <input id="roomName" maxlength="60" placeholder="The Gryffindor reading club">
       </label>
       <label class="field">
-        <span>Password (optional)</span>
+        <span>Secret password (optional)</span>
         <input id="roomPassword" maxlength="60" type="password" placeholder="Leave empty for an open room">
       </label>
-      <button id="createBtn" class="btn primary">Create room</button>
+      <button id="createBtn" class="btn primary">Open the room</button>
     </section>
 
     <div class="divider"><span>or</span></div>
 
     <section class="panel">
-      <h2>Join a room</h2>
+      <h2>Enter a room</h2>
       <label class="field">
         <span>Room code or invite link</span>
         <input id="joinCode" placeholder="ab12cd">
       </label>
-      <button id="joinBtn" class="btn">Join room</button>
+      <button id="joinBtn" class="btn">Enter</button>
     </section>
 
     <p id="error" class="error" role="alert"></p>

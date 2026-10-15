@@ -15,6 +15,8 @@ const state = {
   pageFlip: null,
   pageRatio: 1 / 1.414, // width / height, replaced by the PDF's first page
   pageEls: [],
+  pageImgs: [], // rendered <img> per page, kept when the book is rebuilt
+  singlePage: false,
   rendered: new Set(),
   rendering: new Set(),
   follow: true,
@@ -33,7 +35,7 @@ async function init() {
   const res = await fetch(`/api/rooms/${encodeURIComponent(code)}`);
   if (!res.ok) {
     $('roomName').textContent = 'Room not found';
-    $('empty').innerHTML = '<h2>This room does not exist</h2><p>Rooms close an hour after everyone leaves. <a href="/">Create a new one</a>.</p>';
+    $('empty').innerHTML = '<div class="empty-book">🌫️</div><h2>This room has vanished</h2><p>Rooms disappear an hour after everyone leaves. <a href="/">Open a new one</a>.</p>';
     document.querySelector('.actions').hidden = true;
     return;
   }
@@ -152,7 +154,7 @@ $('inviteBtn').addEventListener('click', async () => {
   const link = `${location.origin}/room/${code}`;
   try {
     await navigator.clipboard.writeText(link);
-    toast('Invite link copied. Send it to your friends!');
+    toast('Invite link copied. Send your owl to your friends!');
   } catch {
     prompt('Copy this invite link:', link);
   }
@@ -226,34 +228,63 @@ async function openBook(pdf, startPage) {
   if (token !== state.loadToken) return doc.destroy(); // a newer book arrived meanwhile
 
   if (state.pdfDoc) state.pdfDoc.destroy();
-  if (state.pageFlip) state.pageFlip.destroy();
   state.pdfDoc = doc;
   state.rendered.clear();
   state.rendering.clear();
+  state.pageImgs = new Array(doc.numPages).fill(null);
 
   const first = await doc.getPage(1);
   const vp = first.getViewport({ scale: 1 });
   state.pageRatio = vp.width / vp.height;
+
+  $('bookWrap').hidden = false;
+  $('controls').hidden = false;
+  $('empty').hidden = true;
+  buildFlipbook(Math.min(startPage, doc.numPages - 1));
+  hideLoading();
+}
+
+// One page at a time when that makes the page clearly bigger (phones, narrow
+// windows), otherwise an open two-page spread.
+function wantsSinglePage() {
+  const { availW, availH } = stageSpace();
+  const spreadPageW = Math.min(availW / 2, availH * state.pageRatio);
+  const singlePageW = Math.min(availW, availH * state.pageRatio);
+  return singlePageW > spreadPageW * 1.25;
+}
+
+function stageSpace() {
+  const stage = document.querySelector('.stage');
+  return {
+    availW: stage.clientWidth - 24,
+    availH: stage.clientHeight - $('controls').offsetHeight - 32,
+  };
+}
+
+// (Re)creates the StPageFlip book. Called when a book opens and when the
+// layout switches between one page and two pages.
+function buildFlipbook(startPage) {
+  destroyFlipbook();
+  state.singlePage = wantsSinglePage();
 
   // StPageFlip removes its root element on destroy, so build a fresh one each time.
   const bookEl = document.createElement('div');
   bookEl.className = 'book';
   $('bookWrap').replaceChildren(bookEl);
 
+  const total = state.pdfDoc.numPages;
   state.pageEls = [];
-  for (let i = 0; i < doc.numPages; i++) {
+  for (let i = 0; i < total; i++) {
     const page = document.createElement('div');
     page.className = 'page';
     // Front and back covers are stiff like a hardcover.
-    if (i === 0 || (i === doc.numPages - 1 && doc.numPages % 2 === 0)) page.dataset.density = 'hard';
+    if (i === 0 || (i === total - 1 && total % 2 === 0)) page.dataset.density = 'hard';
     page.innerHTML = `<div class="page-inner"><div class="page-placeholder">${i + 1}</div></div><div class="page-shade"></div>`;
+    if (state.pageImgs[i]) page.querySelector('.page-inner').replaceChildren(state.pageImgs[i]);
     bookEl.appendChild(page);
     state.pageEls.push(page);
   }
 
-  $('bookWrap').hidden = false;
-  $('controls').hidden = false;
-  $('empty').hidden = true;
   sizeBook();
 
   const baseW = 500;
@@ -261,32 +292,44 @@ async function openBook(pdf, startPage) {
     width: baseW,
     height: Math.round(baseW / state.pageRatio),
     size: 'stretch',
-    minWidth: 300,
-    maxWidth: 2000,
-    minHeight: 200,
-    maxHeight: 3000,
+    // StPageFlip shows one page when the book is narrower than 2 x minWidth,
+    // so a minWidth just over half the book forces single pages, and
+    // usePortrait: false forces spreads.
+    minWidth: state.singlePage ? singleMinWidth() : 100,
+    maxWidth: 3000,
+    minHeight: 100,
+    maxHeight: 4000,
     showCover: true,
-    usePortrait: true,
+    usePortrait: state.singlePage,
     maxShadowOpacity: 0.5,
     mobileScrollSupport: false,
     flippingTime: 800,
-    startPage: Math.min(startPage, doc.numPages - 1),
+    startPage,
   });
+  bookEl.style.minWidth = '0';
   pageFlip.loadFromHTML(state.pageEls);
   state.pageFlip = pageFlip;
 
   pageFlip.on('flip', (e) => onLocalFlip(e.data));
-  pageFlip.on('changeOrientation', () => {
-    sizeBook();
-    updatePageInfo();
-  });
   pageFlip.on('changeState', (e) => {
     if (e.data === 'flipping') playFlipSound();
   });
 
-  hideLoading();
   updatePageInfo();
   renderAround(pageFlip.getCurrentPageIndex());
+}
+
+function singleMinWidth() {
+  return Math.ceil($('bookWrap').clientWidth / 2) + 20;
+}
+
+function destroyFlipbook() {
+  const pf = state.pageFlip;
+  if (!pf) return;
+  // StPageFlip forgets to remove its resize listener on destroy.
+  window.removeEventListener('resize', pf.getUI().onResize);
+  pf.destroy();
+  state.pageFlip = null;
 }
 
 // Download the book ourselves (rather than letting PDF.js do it) so we can show
@@ -332,8 +375,8 @@ function showOpenError(pdf, startPage) {
 function resetEmpty() {
   $('empty').innerHTML = `
     <div class="empty-book">📚</div>
-    <h2>No book on the table yet</h2>
-    <p>Upload a PDF and everyone in the room will see it as a book.</p>`;
+    <h2>The table is empty</h2>
+    <p>Upload a PDF and it will appear as a book for everyone in the room.</p>`;
 }
 
 function onLocalFlip(page) {
@@ -411,7 +454,7 @@ async function renderPage(index) {
   try {
     const page = await doc.getPage(index + 1);
     const base = page.getViewport({ scale: 1 });
-    const shownWidth = $('bookWrap').clientWidth / (state.pageFlip?.getOrientation() === 'portrait' ? 1 : 2);
+    const shownWidth = $('bookWrap').clientWidth / (state.singlePage ? 1 : 2);
     const targetWidth = Math.min(2000, Math.max(900, shownWidth * (window.devicePixelRatio || 1)));
     const viewport = page.getViewport({ scale: targetWidth / base.width });
     const canvas = document.createElement('canvas');
@@ -425,6 +468,7 @@ async function renderPage(index) {
     img.alt = `Page ${index + 1}`;
     img.src = URL.createObjectURL(blob);
     img.draggable = false;
+    state.pageImgs[index] = img;
     state.pageEls[index].querySelector('.page-inner').replaceChildren(img);
     state.rendered.add(index);
     page.cleanup();
@@ -435,20 +479,32 @@ async function renderPage(index) {
   }
 }
 
-// Fit the book inside the stage: as wide as possible without being taller than the screen.
+// Fit the book inside the stage: as big as possible without overflowing it.
 function sizeBook() {
-  const wrap = $('bookWrap');
-  const stage = document.querySelector('.stage');
-  const availW = stage.clientWidth - 32;
-  const availH = stage.clientHeight - $('controls').offsetHeight - 40;
-  // Two pages side by side when there is room for it, otherwise one page at a time.
-  // StPageFlip switches to one page when the book is narrower than 2 x minWidth (600px).
-  let width = Math.min(availW, availH * state.pageRatio * 2);
-  if (width < 600) width = Math.min(availW, availH * state.pageRatio);
-  wrap.style.width = `${Math.floor(Math.max(200, width))}px`;
+  const { availW, availH } = stageSpace();
+  const ratio = state.pageRatio * (state.singlePage ? 1 : 2);
+  const width = Math.min(availW, availH * ratio);
+  $('bookWrap').style.width = `${Math.floor(Math.max(120, width))}px`;
 }
 
-window.addEventListener('resize', sizeBook);
+let resizeTimer;
+function onResize() {
+  if (!state.pageFlip) return;
+  sizeBook();
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const pf = state.pageFlip;
+    if (!pf || pf.getState() !== 'read') return;
+    const layoutChanged = wantsSinglePage() !== state.singlePage;
+    // A single-page book that grew past 2 x minWidth would open into a spread.
+    const outgrown = state.singlePage && $('bookWrap').clientWidth >= pf.getSettings().minWidth * 2;
+    if (layoutChanged || outgrown) {
+      buildFlipbook(state.pageFlip.getCurrentPageIndex());
+    }
+  }, 150);
+}
+
+window.addEventListener('resize', onResize);
 
 $('prevBtn').addEventListener('click', () => state.pageFlip?.flipPrev());
 $('nextBtn').addEventListener('click', () => state.pageFlip?.flipNext());
