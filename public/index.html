@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Book Rooms</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="home">
+  <main class="home-card">
+    <h1>📖 Book Rooms</h1>
+    <p class="tagline">Open a room, invite your friends and read any PDF together like a real book.</p>
+
+    <label class="field">
+      <span>Your name</span>
+      <input id="displayName" maxlength="30" placeholder="e.g. Mahin" autocomplete="nickname">
+    </label>
+
+    <section class="panel">
+      <h2>Create a room</h2>
+      <label class="field">
+        <span>Room name</span>
+        <input id="roomName" maxlength="60" placeholder="Friday book club">
+      </label>
+      <label class="field">
+        <span>Password (optional)</span>
+        <input id="roomPassword" maxlength="60" type="password" placeholder="Leave empty for an open room">
+      </label>
+      <button id="createBtn" class="btn primary">Create room</button>
+    </section>
+
+    <div class="divider"><span>or</span></div>
+
+    <section class="panel">
+      <h2>Join a room</h2>
+      <label class="field">
+        <span>Room code or invite link</span>
+        <input id="joinCode" placeholder="ab12cd">
+      </label>
+      <button id="joinBtn" class="btn">Join room</button>
+    </section>
+
+    <p id="error" class="error" role="alert"></p>
+  </main>
+  <script src="/js/home.js"></script>
+</body>
+</html>

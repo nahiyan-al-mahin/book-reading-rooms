@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reading room · Book Rooms</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="room">
+  <header class="topbar">
+    <a href="/" class="brand">📖 Book Rooms</a>
+    <div class="room-title">
+      <strong id="roomName">Loading…</strong>
+      <span class="code">Code: <b id="roomCode"></b></span>
+    </div>
+    <div class="actions">
+      <button id="inviteBtn" class="btn small">🔗 Copy invite link</button>
+      <label class="btn small primary upload-btn">
+        ⬆ Upload PDF
+        <input id="pdfInput" type="file" accept="application/pdf,.pdf" hidden>
+      </label>
+      <button id="sidebarToggle" class="btn small sidebar-toggle" aria-label="Show people and chat">💬</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <main class="stage">
+      <div id="empty" class="empty">
+        <div class="empty-book">📚</div>
+        <h2>No book on the table yet</h2>
+        <p>Upload a PDF and everyone in the room will see it as a book.</p>
+      </div>
+
+      <div id="loading" class="loading" hidden>
+        <div class="spinner"></div>
+        <p id="loadingText">Opening book…</p>
+      </div>
+
+      <div id="bookWrap" class="book-wrap" hidden>
+        <div id="book" class="book"></div>
+      </div>
+
+      <nav id="controls" class="controls" hidden>
+        <button id="prevBtn" class="btn round" aria-label="Previous page">‹</button>
+        <span id="pageInfo" class="page-info"></span>
+        <button id="nextBtn" class="btn round" aria-label="Next page">›</button>
+        <label class="follow" title="When on, you turn pages together with everyone in the room">
+          <input id="followToggle" type="checkbox" checked> Read together
+        </label>
+      </nav>
+    </main>
+
+    <aside id="sidebar" class="sidebar">
+      <section>
+        <h3>In this room <span id="memberCount" class="count"></span></h3>
+        <ul id="members" class="members"></ul>
+      </section>
+      <section class="chat">
+        <h3>Chat</h3>
+        <ul id="messages" class="messages"></ul>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" maxlength="500" placeholder="Say something…" autocomplete="off">
+          <button class="btn small primary">Send</button>
+        </form>
+      </section>
+    </aside>
+  </div>
+
+  <div id="joinDialog" class="overlay" hidden>
+    <form id="joinForm" class="dialog">
+      <h2>Join <span id="joinRoomName">this room</span></h2>
+      <label class="field">
+        <span>Your name</span>
+        <input id="joinName" maxlength="30" required>
+      </label>
+      <label class="field" id="joinPasswordField" hidden>
+        <span>Room password</span>
+        <input id="joinPassword" type="password" maxlength="60">
+      </label>
+      <p id="joinError" class="error"></p>
+      <button class="btn primary">Join</button>
+    </form>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/vendor/page-flip/page-flip.browser.js"></script>
+  <script type="module" src="/js/room.js"></script>
+</body>
+</html>
