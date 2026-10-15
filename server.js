@@ -57,7 +57,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/vendor/pdfjs', express.static(path.join(__dirname, 'node_modules/pdfjs-dist/build')));
 app.use('/vendor/pdfjs-cmaps', express.static(path.join(__dirname, 'node_modules/pdfjs-dist/cmaps')));
 app.use('/vendor/page-flip', express.static(path.join(__dirname, 'node_modules/page-flip/dist/js')));
-app.use('/uploads', express.static(UPLOAD_DIR));
 
 app.get('/room/:code', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'room.html'));
@@ -89,7 +88,8 @@ const upload = multer({
       cb(null, dir);
     },
     filename(req, file, cb) {
-      cb(null, `${makeFileId()}.pdf`);
+      // No .pdf extension on disk or in the URL, see the /book route below.
+      cb(null, makeFileId());
     },
   }),
   limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
@@ -117,17 +117,30 @@ app.post(
       const room = req.room;
       const old = room.pdf;
       room.pdf = {
-        url: `/uploads/${room.code}/${req.file.filename}`,
+        url: `/api/rooms/${room.code}/book/${req.file.filename}`,
+        file: req.file.filename,
         name: clean(req.file.originalname, 120),
         uploadedBy: clean(safeDecode(req.get('x-display-name')), 30) || 'Someone',
       };
       room.page = 0;
-      if (old) fs.rm(path.join(__dirname, old.url), { force: true }, () => {});
+      if (old) fs.rm(path.join(UPLOAD_DIR, room.code, old.file), { force: true }, () => {});
       io.to(room.code).emit('pdf', { pdf: room.pdf, page: 0 });
       res.json({ pdf: room.pdf });
     });
   }
 );
+
+// The book's bytes. This deliberately does not look like a PDF download (no .pdf
+// in the URL, a generic content type), because download managers such as IDM
+// grab anything that looks like a PDF before the page can read it.
+app.get('/api/rooms/:code/book/:file', (req, res) => {
+  const room = rooms.get(req.params.code.toLowerCase());
+  if (!room || !room.pdf || room.pdf.file !== req.params.file) return res.status(404).end();
+  if (room.password && safeDecode(req.get('x-room-password')) !== room.password) return res.status(403).end();
+  res.sendFile(path.join(UPLOAD_DIR, room.code, room.pdf.file), {
+    headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'private, max-age=3600' },
+  });
+});
 
 const server = http.createServer(app);
 const io = new Server(server);

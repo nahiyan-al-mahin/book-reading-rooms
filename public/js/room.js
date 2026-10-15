@@ -206,16 +206,20 @@ function hideLoading() {
 async function openBook(pdf, startPage) {
   const token = ++state.loadToken;
   state.pdfUrl = pdf.url;
+  resetEmpty();
   showLoading(`Opening “${pdf.name}”…`);
 
   let doc;
   try {
-    doc = await pdfjsLib.getDocument({ url: pdf.url, cMapUrl: '/vendor/pdfjs-cmaps/', cMapPacked: true }).promise;
+    const data = await downloadBook(pdf, token);
+    if (token !== state.loadToken) return;
+    doc = await pdfjsLib.getDocument({ data, cMapUrl: '/vendor/pdfjs-cmaps/', cMapPacked: true }).promise;
   } catch (err) {
     console.error(err);
     if (token === state.loadToken) {
+      state.pdfUrl = null;
       hideLoading();
-      toast('Could not open that PDF.');
+      showOpenError(pdf, startPage);
     }
     return;
   }
@@ -283,6 +287,53 @@ async function openBook(pdf, startPage) {
   hideLoading();
   updatePageInfo();
   renderAround(pageFlip.getCurrentPageIndex());
+}
+
+// Download the book ourselves (rather than letting PDF.js do it) so we can show
+// progress and send the room password.
+async function downloadBook(pdf, token) {
+  const res = await fetch(pdf.url, { headers: { 'x-room-password': encodeURIComponent(state.password) } });
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const total = Number(res.headers.get('content-length')) || 0;
+  const reader = res.body.getReader();
+  const chunks = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total && token === state.loadToken) {
+      showLoading(`Opening “${pdf.name}”… ${Math.round((received / total) * 100)}%`);
+    }
+  }
+  const data = new Uint8Array(received);
+  let offset = 0;
+  for (const c of chunks) {
+    data.set(c, offset);
+    offset += c.length;
+  }
+  return data;
+}
+
+function showOpenError(pdf, startPage) {
+  $('empty').hidden = false;
+  $('empty').innerHTML = `
+    <div class="empty-book">⚠️</div>
+    <h2>Could not open the book</h2>
+    <p>If you use a download manager like IDM, it may have grabbed the file. Try again, or turn the download manager off for this site.</p>
+    <button class="btn primary" id="retryBtn">Try again</button>`;
+  $('retryBtn').addEventListener('click', () => {
+    resetEmpty();
+    openBook(pdf, state.follow ? state.roomPage : startPage);
+  });
+}
+
+function resetEmpty() {
+  $('empty').innerHTML = `
+    <div class="empty-book">📚</div>
+    <h2>No book on the table yet</h2>
+    <p>Upload a PDF and everyone in the room will see it as a book.</p>`;
 }
 
 function onLocalFlip(page) {
