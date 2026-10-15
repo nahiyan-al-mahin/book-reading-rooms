@@ -54,7 +54,7 @@ While developing, `npm run dev` restarts the server automatically when you chang
 You can set these environment variables before `npm start`:
 
 - `PORT`: port to listen on (default `3000`)
-- `MAX_UPLOAD_MB`: largest PDF allowed (default `100`)
+- `MAX_UPLOAD_MB`: largest PDF allowed (default `500`)
 
 In PowerShell: `$env:PORT=4000; npm start`
 
@@ -72,7 +72,7 @@ uploads/             Uploaded PDFs (created automatically, not committed)
 
 - Rooms are kept **in memory**. Restarting the server clears them. A room and its PDF are deleted one hour after the last person leaves.
 - The room remembers the current page, so people who join late open the book at the same page.
-- Pages are rendered on demand around the page you're on, so big PDFs open quickly.
+- Big PDFs open quickly: the browser downloads only the parts of the file it needs for the pages around you (HTTP range requests), and renders pages on demand.
 
 ## Ideas for next steps
 

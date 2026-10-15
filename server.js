@@ -9,7 +9,7 @@ const { Server } = require('socket.io');
 const { customAlphabet } = require('nanoid');
 
 const PORT = process.env.PORT || 3000;
-const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 100);
+const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 500);
 const EMPTY_ROOM_TTL_MS = 60 * 60 * 1000; // delete a room 1 hour after the last person leaves
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
@@ -77,7 +77,7 @@ app.post('/api/rooms', (req, res) => {
 app.get('/api/rooms/:code', (req, res) => {
   const room = rooms.get(req.params.code.toLowerCase());
   if (!room) return res.status(404).json({ error: 'Room not found' });
-  res.json({ code: room.code, name: room.name, hasPassword: Boolean(room.password) });
+  res.json({ code: room.code, name: room.name, hasPassword: Boolean(room.password), maxUploadMb: MAX_UPLOAD_MB });
 });
 
 const upload = multer({
@@ -112,6 +112,9 @@ app.post(
   },
   (req, res) => {
     upload.single('pdf')(req, res, (err) => {
+      if (err && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: `That PDF is too big. The limit is ${MAX_UPLOAD_MB} MB.` });
+      }
       if (err) return res.status(400).json({ error: err.message });
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
       const room = req.room;
@@ -130,7 +133,8 @@ app.post(
   }
 );
 
-// The book's bytes. This deliberately does not look like a PDF download (no .pdf
+// The book's bytes. Supports Range requests (sendFile does this), so PDF.js
+// only downloads the parts of a big book it needs. This deliberately does not look like a PDF download (no .pdf
 // in the URL, a generic content type), because download managers such as IDM
 // grab anything that looks like a PDF before the page can read it.
 app.get('/api/rooms/:code/book/:file', (req, res) => {

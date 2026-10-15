@@ -41,6 +41,7 @@ async function init() {
   }
   const info = await res.json();
   $('roomName').textContent = info.name;
+  state.maxUploadMb = info.maxUploadMb;
   $('joinRoomName').textContent = info.name;
   document.title = `${info.name} · Book Rooms`;
 
@@ -164,6 +165,10 @@ $('pdfInput').addEventListener('change', () => {
   const file = $('pdfInput').files[0];
   $('pdfInput').value = '';
   if (!file) return;
+  if (state.maxUploadMb && file.size > state.maxUploadMb * 1024 * 1024) {
+    toast(`That PDF is too big. The limit is ${state.maxUploadMb} MB.`);
+    return;
+  }
   const form = new FormData();
   form.append('pdf', file);
   const xhr = new XMLHttpRequest();
@@ -171,7 +176,10 @@ $('pdfInput').addEventListener('change', () => {
   xhr.setRequestHeader('x-room-password', encodeURIComponent(state.password));
   xhr.setRequestHeader('x-display-name', encodeURIComponent(state.name));
   xhr.upload.onprogress = (e) => {
-    if (e.lengthComputable) showLoading(`Uploading… ${Math.round((e.loaded / e.total) * 100)}%`);
+    if (e.lengthComputable) {
+      const mb = (n) => Math.round(n / 1024 / 1024);
+      showLoading(`Uploading… ${Math.round((e.loaded / e.total) * 100)}% (${mb(e.loaded)} of ${mb(e.total)} MB)`);
+    }
   };
   xhr.onload = () => {
     if (xhr.status !== 200) {
@@ -213,9 +221,18 @@ async function openBook(pdf, startPage) {
 
   let doc;
   try {
-    const data = await downloadBook(pdf, token);
-    if (token !== state.loadToken) return;
-    doc = await pdfjsLib.getDocument({ data, cMapUrl: '/vendor/pdfjs-cmaps/', cMapPacked: true }).promise;
+    // PDF.js fetches the book in 1 MB pieces as pages are needed, so even a
+    // huge PDF opens quickly instead of downloading in full first.
+    const task = pdfjsLib.getDocument({
+      url: pdf.url,
+      httpHeaders: { 'x-room-password': encodeURIComponent(state.password) },
+      rangeChunkSize: 1024 * 1024,
+      disableAutoFetch: true,
+      disableStream: true,
+      cMapUrl: '/vendor/pdfjs-cmaps/',
+      cMapPacked: true,
+    });
+    doc = await task.promise;
   } catch (err) {
     console.error(err);
     if (token === state.loadToken) {
@@ -330,33 +347,6 @@ function destroyFlipbook() {
   window.removeEventListener('resize', pf.getUI().onResize);
   pf.destroy();
   state.pageFlip = null;
-}
-
-// Download the book ourselves (rather than letting PDF.js do it) so we can show
-// progress and send the room password.
-async function downloadBook(pdf, token) {
-  const res = await fetch(pdf.url, { headers: { 'x-room-password': encodeURIComponent(state.password) } });
-  if (!res.ok) throw new Error(`Download failed (${res.status})`);
-  const total = Number(res.headers.get('content-length')) || 0;
-  const reader = res.body.getReader();
-  const chunks = [];
-  let received = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    if (total && token === state.loadToken) {
-      showLoading(`Opening “${pdf.name}”… ${Math.round((received / total) * 100)}%`);
-    }
-  }
-  const data = new Uint8Array(received);
-  let offset = 0;
-  for (const c of chunks) {
-    data.set(c, offset);
-    offset += c.length;
-  }
-  return data;
 }
 
 function showOpenError(pdf, startPage) {
