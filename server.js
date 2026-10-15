@@ -10,6 +10,7 @@ const { customAlphabet } = require('nanoid');
 
 const PORT = process.env.PORT || 3000;
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 500);
+const MAX_RANGE_BYTES = 16 * 1024 * 1024; // largest piece of a book sent in one message
 const EMPTY_ROOM_TTL_MS = 60 * 60 * 1000; // delete a room 1 hour after the last person leaves
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
@@ -120,8 +121,8 @@ app.post(
       const room = req.room;
       const old = room.pdf;
       room.pdf = {
-        url: `/api/rooms/${room.code}/book/${req.file.filename}`,
         file: req.file.filename,
+        size: req.file.size,
         name: clean(req.file.originalname, 120),
         uploadedBy: clean(safeDecode(req.get('x-display-name')), 30) || 'Someone',
       };
@@ -132,19 +133,6 @@ app.post(
     });
   }
 );
-
-// The book's bytes. Supports Range requests (sendFile does this), so PDF.js
-// only downloads the parts of a big book it needs. This deliberately does not look like a PDF download (no .pdf
-// in the URL, a generic content type), because download managers such as IDM
-// grab anything that looks like a PDF before the page can read it.
-app.get('/api/rooms/:code/book/:file', (req, res) => {
-  const room = rooms.get(req.params.code.toLowerCase());
-  if (!room || !room.pdf || room.pdf.file !== req.params.file) return res.status(404).end();
-  if (room.password && safeDecode(req.get('x-room-password')) !== room.password) return res.status(403).end();
-  res.sendFile(path.join(UPLOAD_DIR, room.code, room.pdf.file), {
-    headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'private, max-age=3600' },
-  });
-});
 
 const server = http.createServer(app);
 const io = new Server(server);
@@ -174,6 +162,29 @@ io.on('connection', (socket) => {
     if (page === room.page) return;
     room.page = page;
     socket.to(room.code).emit('page', { page, by: name });
+  });
+
+  // The book's bytes, sent over the live connection in pieces as PDF.js asks
+  // for them. Using the socket instead of a normal download means download
+  // managers such as IDM can't intercept the file, and readers only fetch the
+  // parts of a big book they actually look at.
+  socket.on('book-range', async (req, ack) => {
+    if (typeof ack !== 'function') return;
+    if (!room || !room.pdf || !req || req.file !== room.pdf.file) return ack({ error: 'Book not found' });
+    const begin = Math.max(0, Math.floor(req.begin));
+    const end = Math.min(room.pdf.size, Math.floor(req.end));
+    if (!(end > begin) || end - begin > MAX_RANGE_BYTES) return ack({ error: 'Bad range' });
+    let fh;
+    try {
+      fh = await fs.promises.open(path.join(UPLOAD_DIR, room.code, room.pdf.file), 'r');
+      const buf = Buffer.alloc(end - begin);
+      const { bytesRead } = await fh.read(buf, 0, buf.length, begin);
+      ack({ data: buf.subarray(0, bytesRead) });
+    } catch (err) {
+      ack({ error: 'Could not read the book' });
+    } finally {
+      fh?.close();
+    }
   });
 
   socket.on('chat', (text) => {

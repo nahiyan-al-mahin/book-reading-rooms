@@ -72,7 +72,7 @@ uploads/             Uploaded PDFs (created automatically, not committed)
 
 - Rooms are kept **in memory**. Restarting the server clears them. A room and its PDF are deleted one hour after the last person leaves.
 - The room remembers the current page, so people who join late open the book at the same page.
-- Big PDFs open quickly: the browser downloads only the parts of the file it needs for the pages around you (HTTP range requests), and renders pages on demand.
+- Big PDFs open quickly: the book is sent over the live Socket.IO connection in 1 MB pieces, only for the pages people look at, and pages are rendered on demand. Not using a normal download also stops download managers like IDM from grabbing the file.
 
 ## Ideas for next steps
 

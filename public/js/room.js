@@ -10,7 +10,7 @@ const state = {
   name: localStorage.getItem('displayName') || '',
   password: sessionStorage.getItem(passwordKey) || '',
   joined: false,
-  pdfUrl: null,
+  pdfFile: null,
   pdfDoc: null,
   pageFlip: null,
   pageRatio: 1 / 1.414, // width / height, replaced by the PDF's first page
@@ -90,7 +90,7 @@ function join() {
     $('messages').innerHTML = '';
     room.messages.forEach(addMessage);
     state.roomPage = room.page;
-    if (room.pdf && room.pdf.url !== state.pdfUrl) openBook(room.pdf, room.page);
+    if (room.pdf && room.pdf.file !== state.pdfFile) openBook(room.pdf, room.page);
     else if (room.pdf && state.follow) goToPage(room.page);
   });
 }
@@ -215,20 +215,26 @@ function hideLoading() {
 
 async function openBook(pdf, startPage) {
   const token = ++state.loadToken;
-  state.pdfUrl = pdf.url;
+  state.pdfFile = pdf.file;
   resetEmpty();
   showLoading(`Opening “${pdf.name}”…`);
 
   let doc;
   try {
-    // PDF.js fetches the book in 1 MB pieces as pages are needed, so even a
-    // huge PDF opens quickly instead of downloading in full first.
+    // PDF.js asks for the book in 1 MB pieces as pages are needed, and we
+    // fetch them over the live connection (see 'book-range' in server.js).
+    // That keeps big books fast and stops download managers like IDM from
+    // grabbing the file.
+    const transport = new pdfjsLib.PDFDataRangeTransport(pdf.size, null);
+    transport.requestDataRange = (begin, end) => {
+      fetchRange(pdf.file, begin, end)
+        .then((chunk) => transport.onDataRange(begin, chunk))
+        .catch((err) => console.error('Failed to load part of the book', err));
+    };
     const task = pdfjsLib.getDocument({
-      url: pdf.url,
-      httpHeaders: { 'x-room-password': encodeURIComponent(state.password) },
+      range: transport,
       rangeChunkSize: 1024 * 1024,
       disableAutoFetch: true,
-      disableStream: true,
       cMapUrl: '/vendor/pdfjs-cmaps/',
       cMapPacked: true,
     });
@@ -236,9 +242,9 @@ async function openBook(pdf, startPage) {
   } catch (err) {
     console.error(err);
     if (token === state.loadToken) {
-      state.pdfUrl = null;
+      state.pdfFile = null;
       hideLoading();
-      showOpenError(pdf, startPage);
+      showOpenError(pdf, startPage, err);
     }
     return;
   }
@@ -349,17 +355,34 @@ function destroyFlipbook() {
   state.pageFlip = null;
 }
 
-function showOpenError(pdf, startPage) {
+function fetchRange(file, begin, end) {
+  return new Promise((resolve, reject) => {
+    socket.timeout(60000).emit('book-range', { file, begin, end }, (err, res) => {
+      if (err) return reject(new Error('The server took too long to send the book'));
+      if (res.error) return reject(new Error(res.error));
+      resolve(new Uint8Array(res.data));
+    });
+  });
+}
+
+function showOpenError(pdf, startPage, err) {
   $('empty').hidden = false;
   $('empty').innerHTML = `
     <div class="empty-book">⚠️</div>
     <h2>Could not open the book</h2>
-    <p>If you use a download manager like IDM, it may have grabbed the file. Try again, or turn the download manager off for this site.</p>
+    <p>Something went wrong while opening “${escapeHtml(pdf.name)}”.</p>
+    <p class="error-detail">${escapeHtml(String(err?.message || err || 'Unknown error'))}</p>
     <button class="btn primary" id="retryBtn">Try again</button>`;
   $('retryBtn').addEventListener('click', () => {
     resetEmpty();
     openBook(pdf, state.follow ? state.roomPage : startPage);
   });
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function resetEmpty() {
